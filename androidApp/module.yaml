@@ -1,0 +1,17 @@
+product: android/app
+
+dependencies:
+  - //shared
+  - $libs.androidx.activity.compose
+  - $libs.firebase.messaging
+  - org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0
+  - $compose.preview
+  - $compose.uiTooling
+
+settings:
+  compose: enabled
+  kotlin:
+    serialization: enabled
+  android:
+    namespace: org.unesa.agc
+    applicationId: org.unesa.agc.AntiGasChamber
