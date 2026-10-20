@@ -13,3 +13,4 @@ api/agc.db
 .env
 api/.env
 google-services.json
+sa.json
