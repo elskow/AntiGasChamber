@@ -1,0 +1,14 @@
+product: android/app
+
+dependencies:
+  - //shared
+  - $libs.androidx.activity.compose
+  - $libs.firebase.messaging
+  - $compose.preview
+  - $compose.uiTooling
+
+settings:
+  compose: enabled
+  android:
+    namespace: org.unesa.agc
+    applicationId: org.unesa.agc.AntiGasChamber

@@ -1,0 +1,43 @@
+product:
+  type: kmp/lib
+  platforms: [ android, iosArm64, iosSimulatorArm64 ]
+
+repositories:
+  - https://repo1.maven.org/maven2
+  - https://maven.google.com
+
+dependencies:
+  - $compose.runtime
+  - $compose.foundation
+  - $compose.material3
+  - $compose.ui
+  - $compose.components.resources
+  - $compose.preview
+  - $compose.hotReload.runtimeApi
+  - br.com.devsrsouza.compose.icons:feather:1.1.1
+  - dev.chrisbanes.haze:haze:2.0.0
+  - dev.chrisbanes.haze:haze-blur:2.0.0
+  - dev.chrisbanes.haze:haze-blur-materials:2.0.0
+  - io.ktor:ktor-client-core:3.3.2
+  - io.ktor:ktor-client-websockets:3.3.2
+  - io.ktor:ktor-client-content-negotiation:3.3.2
+  - io.ktor:ktor-serialization-kotlinx-json:3.3.2
+  - org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0
+  - $libs.androidx.lifecycle.viewmodel.compose
+  - $libs.androidx.lifecycle.runtime.compose
+
+dependencies@android:
+  - $compose.uiTooling
+  - io.ktor:ktor-client-android:3.3.2
+
+dependencies@ios:
+  - io.ktor:ktor-client-darwin:3.3.2
+
+settings:
+  compose:
+    enabled: true
+    resources:
+      packageName: org.unesa.agc.resources
+      exposedAccessors: true
+  kotlin:
+    serialization: enabled
