@@ -10,13 +10,17 @@ import (
 )
 
 type Config struct {
-	TokenSecret  string `env:"AGC_TOKEN_SECRET"`
-	TokenHours   int    `env:"AGC_TOKEN_HOURS" envDefault:"24"`
-	HTTPAddress  string `env:"AGC_HTTP_ADDRESS" envDefault:":8080"`
-	MQTTAddress  string `env:"AGC_MQTT_ADDRESS" envDefault:":1883"`
-	BackendUser  string `env:"AGC_BACKEND_USER" envDefault:"backend"`
-	BackendPass  string `env:"AGC_BACKEND_PASSWORD" envDefault:"backend-inline-dev"`
-	DatabasePath string `env:"AGC_DATABASE" envDefault:"agc.db"`
+	TokenSecret   string `env:"AGC_TOKEN_SECRET"`
+	TokenHours    int    `env:"AGC_TOKEN_HOURS" envDefault:"24"`
+	HTTPAddress   string `env:"AGC_HTTP_ADDRESS" envDefault:":8080"`
+	MQTTAddress   string `env:"AGC_MQTT_ADDRESS" envDefault:":1883"`
+	BackendUser   string `env:"AGC_BACKEND_USER" envDefault:"backend"`
+	BackendPass   string `env:"AGC_BACKEND_PASSWORD" envDefault:"backend-inline-dev"`
+	DatabasePath  string `env:"AGC_DATABASE" envDefault:"agc.db"`
+	ProvisionCode string `env:"AGC_PROVISION_CODE"`
+
+	MinAlertInterval time.Duration `env:"AGC_MIN_ALERT_INTERVAL" envDefault:"10m"`
+	ReadingRetention time.Duration `env:"AGC_READING_RETENTION" envDefault:"720h"`
 
 	FCMProjectID string `env:"AGC_FCM_PROJECT_ID"`
 

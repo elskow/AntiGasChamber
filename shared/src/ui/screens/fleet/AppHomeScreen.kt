@@ -39,6 +39,7 @@ import org.unesa.agc.ui.components.AgcGlassTabBar
 import org.unesa.agc.ui.components.AgcScreenHeader
 import org.unesa.agc.ui.components.AgcStatus
 import org.unesa.agc.ui.components.AgcStatusChip
+import org.unesa.agc.ui.components.clickableNoRipple
 import org.unesa.agc.ui.components.AgcTab
 import org.unesa.agc.ui.icons.AppTabIcons
 import org.unesa.agc.ui.components.GlassStateCard
@@ -109,7 +110,11 @@ fun AlertsScreen(viewModel: FleetViewModel) {
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(viewModel.alerts.size) { index ->
-                    AlertCard(viewModel.alerts[index])
+                    val alert = viewModel.alerts[index]
+                    AlertCard(
+                        alert = alert,
+                        onClick = { if (alert.readAt == null) viewModel.markAlertRead(alert.alertId) },
+                    )
                 }
                 item {
                     Text(
@@ -128,7 +133,7 @@ fun AlertsScreen(viewModel: FleetViewModel) {
 }
 
 @Composable
-private fun AlertCard(alert: AlertDto) {
+private fun AlertCard(alert: AlertDto, onClick: () -> Unit = {}) {
     val colors = AgcThemeColors.current
     val status = severityOf(alert.severity)
     val barColor = when (status) {
@@ -136,9 +141,12 @@ private fun AlertCard(alert: AlertDto) {
         AgcStatus.WARNING -> colors.statusWarning
         else -> colors.statusOffline
     }
-    AgcGlassPanel(modifier = Modifier.padding(horizontal = AgcSpacing.screenEdge.dp)) {
+    val read = alert.readAt != null
+    AgcGlassPanel(modifier = Modifier
+        .padding(horizontal = AgcSpacing.screenEdge.dp)
+        .clickableNoRipple(onClick = onClick)) {
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            Box(Modifier.width(3.dp).fillMaxHeight().background(barColor))
+            Box(Modifier.width(3.dp).fillMaxHeight().background(if (read) colors.secondaryLabel.copy(alpha = 0.3f) else barColor))
             Row(
                 Modifier
                     .weight(1f)
@@ -150,11 +158,12 @@ private fun AlertCard(alert: AlertDto) {
                     Text(
                         "${alert.severity.replaceFirstChar { it.uppercase() }} at ${alert.deviceId}",
                         style = AgcTypographyLight.headline,
-                        color = colors.label,
+                        color = if (read) colors.secondaryLabel else colors.label,
                     )
                     Spacer(Modifier.height(AgcSpacing.xs.dp))
                     Text(
-                        "peak ${alert.peakPpm.toInt()} ppm · ${alert.triggeredAt}",
+                        if (read) "read · peak ${alert.peakPpm.toInt()} ppm · ${alert.triggeredAt}"
+                        else "tap to mark read · peak ${alert.peakPpm.toInt()} ppm · ${alert.triggeredAt}",
                         style = AgcTypographyLight.footnote,
                         color = colors.secondaryLabel,
                     )

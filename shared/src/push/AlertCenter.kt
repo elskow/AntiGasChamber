@@ -17,6 +17,7 @@ data class LiveAlert(
     val deviceId: String,
     val severity: AlertSeverity,
     val peakPpm: Double,
+    val cleared: Boolean = false,
 )
 
 class AlertCenter(
@@ -33,8 +34,14 @@ class AlertCenter(
         _current.value = alert
         (presenterOverride ?: presenter).present(
             alertId = alert.id,
-            title = if (alert.severity == AlertSeverity.ALARM) "GAS LEAK ALARM" else "Gas warning",
-            body = "Node ${alert.deviceId}: peak ${alert.peakPpm.toInt()} ppm",
+            title = when {
+                alert.cleared -> "Alert cleared"
+                alert.severity == AlertSeverity.ALARM -> "GAS LEAK ALARM"
+                else -> "Gas warning"
+            },
+            body = if (alert.cleared)
+                "Gas levels back to normal at ${alert.deviceId} (peak ${alert.peakPpm.toInt()} ppm)"
+            else "Node ${alert.deviceId}: peak ${alert.peakPpm.toInt()} ppm",
             severity = alert.severity.name,
         )
         return true

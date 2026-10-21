@@ -2,7 +2,9 @@ package dispatch
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strconv"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
@@ -40,7 +42,14 @@ func (s androidSender) send(ctx context.Context, target PushTarget, e alert.Even
 		return nil
 	}
 	_, err := s.client.Send(ctx, &messaging.Message{
-		Token:        target.Token,
+		Token: target.Token,
+		Data: map[string]string{
+			"alertId":  e.ID,
+			"deviceId": e.DeviceID,
+			"severity": string(e.Severity),
+			"peakPpm":  fmt.Sprintf("%.0f", e.PeakPPM),
+			"cleared":  strconv.FormatBool(e.Cleared),
+		},
 		Notification: &messaging.Notification{Title: e.Title(), Body: e.Body()},
 		Android:      &messaging.AndroidConfig{Priority: "high"},
 	})

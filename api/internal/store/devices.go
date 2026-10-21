@@ -15,6 +15,7 @@ type DeviceCred struct {
 }
 
 type ReadingDTO struct {
+	ID          int64      `json:"readingId"`
 	DeviceID    string     `json:"deviceId"`
 	PPM         float64    `json:"ppm"`
 	Temperature *float64   `json:"temp,omitempty"`
@@ -55,14 +56,14 @@ func (db *DB) Devices(ctx context.Context) ([]Device, error) {
 
 func (db *DB) LatestReadings(ctx context.Context, deviceID string, limit int) ([]ReadingDTO, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT r.device_id, r.ppm, r.temperature, r.raw_ratio, r.received_at FROM readings r
+		`SELECT r.id, r.device_id, r.ppm, r.temperature, r.raw_ratio, r.received_at FROM readings r
 		 WHERE r.device_id = ? ORDER BY r.received_at DESC LIMIT ?`,
 		deviceID, limit)
 	if err != nil {
 		return nil, err
 	}
 	return collect(rows, func(dto *ReadingDTO) []any {
-		return []any{&dto.DeviceID, &dto.PPM, &dto.Temperature, &dto.RawRatio, &dto.ReceivedAt}
+		return []any{&dto.ID, &dto.DeviceID, &dto.PPM, &dto.Temperature, &dto.RawRatio, &dto.ReceivedAt}
 	})
 }
 
@@ -113,6 +114,26 @@ func (db *DB) RecordAlert(ctx context.Context, e alert.Event) error {
 		`INSERT INTO alerts (id, device_id, severity, peak_ppm, triggered_at) VALUES (?, ?, ?, ?, ?)`,
 		e.ID, e.DeviceID, string(e.Severity), e.PeakPPM, timestamp(e.Triggered))
 	return err
+}
+
+func (db *DB) ReadingsPage(ctx context.Context, deviceID string, before *int64, limit int) ([]ReadingDTO, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT r.id, r.device_id, r.ppm, r.temperature, r.raw_ratio, r.received_at FROM readings r
+		 WHERE r.device_id = ? AND (? = 0 OR r.id < ?) ORDER BY r.id DESC LIMIT ?`,
+		deviceID, beforeInt(before), beforeInt(before), limit)
+	if err != nil {
+		return nil, err
+	}
+	return collect(rows, func(dto *ReadingDTO) []any {
+		return []any{&dto.ID, &dto.DeviceID, &dto.PPM, &dto.Temperature, &dto.RawRatio, &dto.ReceivedAt}
+	})
+}
+
+func beforeInt(before *int64) int64 {
+	if before == nil {
+		return 0
+	}
+	return *before
 }
 
 func GenerateDeviceSecret() (string, error) {

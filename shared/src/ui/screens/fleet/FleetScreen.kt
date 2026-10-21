@@ -15,9 +15,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.unesa.agc.data.DeviceDto
 import org.unesa.agc.data.ProvisionDeviceResponse
+import org.unesa.agc.data.formatIso
 import org.unesa.agc.ui.components.AgcGlassPanel
 import org.unesa.agc.ui.components.AgcGroupedSection
 import org.unesa.agc.ui.components.AgcPlusButton
@@ -81,7 +84,13 @@ fun FleetScreen(viewModel: FleetViewModel) {
                 contentPadding = PaddingValues(top = AgcSpacing.sm.dp, bottom = AgcSpacing.tabBarClearance.dp),
                 verticalArrangement = Arrangement.spacedBy(AgcSpacing.sectionGap.dp),
             ) {
-                item { FleetSection(viewModel.fleet) }
+                item {
+                    FleetSection(
+                        viewModel.fleet,
+                        onRotate = { viewModel.rotateDevice(it) },
+                        onDelete = { viewModel.deleteDevice(it) },
+                    )
+                }
                 viewModel.actionError?.let { message ->
                     item {
                         Text(
@@ -117,11 +126,16 @@ fun FleetScreen(viewModel: FleetViewModel) {
 }
 
 @Composable
-private fun FleetSection(fleet: List<DeviceDto>) {
+private fun FleetSection(
+    fleet: List<DeviceDto>,
+    onRotate: (String) -> Unit,
+    onDelete: (String) -> Unit,
+) {
     val colors = AgcThemeColors.current
+    var selected by remember { mutableStateOf<String?>(null) }
     AgcGroupedSection(
         header = "FLEET",
-        footer = "Every LPG sensor node in the system.",
+        footer = "Every LPG sensor node in the system. Tap a node to manage it.",
     ) {
         if (fleet.isEmpty()) {
             Text(
@@ -135,7 +149,7 @@ private fun FleetSection(fleet: List<DeviceDto>) {
             AgcListRow(
                 title = node.deviceId,
                 subtitle = buildString {
-                    append("last seen ${node.lastSeen ?: "never"}")
+                    node.lastSeen?.let { append("last seen ${formatIso(it) ?: it}") } ?: append("last seen never")
                     node.lastPpm?.let { append(" · ${it.toInt()} ppm") }
                 },
                 trailing = {
@@ -147,9 +161,28 @@ private fun FleetSection(fleet: List<DeviceDto>) {
                         }
                     )
                 },
+                onClick = { selected = node.deviceId },
             )
             if (index < fleet.lastIndex) AgcRowSeparator()
         }
+    }
+    selected?.let { id ->
+        AlertDialog(
+            onDismissRequest = { selected = null },
+            title = { Text(id) },
+            text = { Text("Manage this sensor node. Rotating the secret invalidates the current one on the device.") },
+            confirmButton = {
+                TextButton(onClick = { onRotate(id); selected = null }) { Text("Rotate secret") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { onDelete(id); selected = null }) {
+                        Text("Delete", color = colors.statusAlarm)
+                    }
+                    TextButton(onClick = { selected = null }) { Text("Cancel") }
+                }
+            },
+        )
     }
 }
 

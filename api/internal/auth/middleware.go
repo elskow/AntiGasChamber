@@ -20,7 +20,7 @@ func Middleware(tokens *Token) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
 			if !strings.HasPrefix(header, "Bearer ") {
-				http.Error(w, `{"error":"missing bearer token"}`, http.StatusUnauthorized)
+				writeAuthProblem(w, r, "unauthorized", "missing bearer token")
 				return
 			}
 			claims, err := tokens.Verify(strings.TrimPrefix(header, "Bearer "))
@@ -29,12 +29,20 @@ func Middleware(tokens *Token) func(http.Handler) http.Handler {
 				if errors.Is(err, ErrExpiredToken) {
 					reason = "token has expired"
 				}
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusUnauthorized)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": reason})
+				writeAuthProblem(w, r, "unauthorized", reason)
 				return
 			}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), claimsKey{}, claims)))
 		})
 	}
+}
+
+func writeAuthProblem(w http.ResponseWriter, r *http.Request, code, message string) {
+	requestID := r.Header.Get("X-Request-Id")
+	w.Header().Set("X-Request-Id", requestID)
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code": code, "message": message, "status": http.StatusUnauthorized, "requestId": requestID,
+	})
 }

@@ -18,18 +18,20 @@ const (
 )
 
 type Config struct {
-	WarningPPM     float64
-	AlarmPPM       float64
-	ClearMarginPPM float64
-	Confirmations  int
+	WarningPPM       float64
+	AlarmPPM         float64
+	ClearMarginPPM   float64
+	Confirmations    int
+	MinAlertInterval time.Duration
 }
 
 func DefaultConfig() Config {
 	return Config{
-		WarningPPM:     200,
-		AlarmPPM:       800,
-		ClearMarginPPM: 100,
-		Confirmations:  3,
+		WarningPPM:       200,
+		AlarmPPM:         800,
+		ClearMarginPPM:   100,
+		Confirmations:    3,
+		MinAlertInterval: 10 * time.Minute,
 	}
 }
 
@@ -46,9 +48,13 @@ type Event struct {
 	Severity  Severity
 	PeakPPM   float64
 	Triggered time.Time
+	Cleared   bool
 }
 
 func (e Event) Title() string {
+	if e.Cleared {
+		return "Alert cleared"
+	}
 	if e.Severity == SeverityAlarm {
 		return "GAS LEAK ALARM"
 	}
@@ -56,6 +62,9 @@ func (e Event) Title() string {
 }
 
 func (e Event) Body() string {
+	if e.Cleared {
+		return fmt.Sprintf("Gas levels back to normal at %s (peak %.0f ppm)", e.DeviceID, e.PeakPPM)
+	}
 	return fmt.Sprintf("Node %s: peak %.0f ppm", e.DeviceID, e.PeakPPM)
 }
 
@@ -64,6 +73,7 @@ type Store interface {
 	RecordReading(ctx context.Context, r Reading) error
 	RecordAlert(ctx context.Context, e Event) error
 	SetStatus(ctx context.Context, deviceID string, status string) error
+	MarkAlertCleared(ctx context.Context, alertID string) error
 }
 
 type Engine struct {
@@ -71,9 +81,16 @@ type Engine struct {
 	db      Store
 	onAlert func(Event)
 
-	mu     sync.Mutex
-	streak map[string]streak
-	raised map[string]Severity
+	mu           sync.Mutex
+	streak       map[string]streak
+	raised       map[string]raisedEvent
+	lastRaisedAt map[string]time.Time
+}
+
+type raisedEvent struct {
+	severity Severity
+	id       string
+	peakPPM  float64
 }
 
 type streak struct {
@@ -83,10 +100,11 @@ type streak struct {
 
 func NewEngine(db Store, cfg Config) *Engine {
 	return &Engine{
-		cfg:    cfg,
-		db:     db,
-		streak: make(map[string]streak),
-		raised: make(map[string]Severity),
+		cfg:          cfg,
+		db:           db,
+		streak:       make(map[string]streak),
+		raised:       make(map[string]raisedEvent),
+		lastRaisedAt: make(map[string]time.Time),
 	}
 }
 
@@ -109,7 +127,7 @@ func (e *Engine) Observe(ctx context.Context, r Reading) error {
 	prev.count++
 	e.streak[r.DeviceID] = prev
 
-	if prev.count < e.cfg.Confirmations || e.raised[r.DeviceID] == severity {
+	if prev.count < e.cfg.Confirmations || e.raised[r.DeviceID].severity == severity {
 		return nil
 	}
 	return e.raise(ctx, r, severity)
@@ -127,7 +145,8 @@ func (e *Engine) classify(ppm float64) Severity {
 }
 
 func (e *Engine) clear(ctx context.Context, r Reading) error {
-	if e.raised[r.DeviceID] == "" {
+	raised, ok := e.raised[r.DeviceID]
+	if !ok {
 		return nil
 	}
 	if r.PPM >= e.cfg.WarningPPM-e.cfg.ClearMarginPPM {
@@ -138,12 +157,30 @@ func (e *Engine) clear(ctx context.Context, r Reading) error {
 	if err := e.db.SetStatus(ctx, r.DeviceID, StatusOnline); err != nil {
 		return err
 	}
+	if err := e.db.MarkAlertCleared(ctx, raised.id); err != nil {
+		slog.Warn("mark alert cleared", "alertId", raised.id, "err", err)
+	}
 	slog.Info("alert cleared", "device", r.DeviceID, "ppm", r.PPM)
+	if e.onAlert != nil {
+		e.onAlert(Event{
+			ID:        raised.id,
+			DeviceID:  r.DeviceID,
+			Severity:  raised.severity,
+			PeakPPM:   raised.peakPPM,
+			Triggered: time.Now().UTC(),
+			Cleared:   true,
+		})
+	}
 	return nil
 }
 
 func (e *Engine) raise(ctx context.Context, r Reading, severity Severity) error {
 	now := time.Now().UTC()
+	if last, ok := e.lastRaisedAt[r.DeviceID]; ok && now.Sub(last) < e.cfg.MinAlertInterval {
+		delete(e.streak, r.DeviceID)
+		slog.Info("alert suppressed by cooldown", "device", r.DeviceID, "severity", severity)
+		return nil
+	}
 	event := Event{
 		ID:        fmt.Sprintf("%s-%s-%d", r.DeviceID, severity, now.UnixMilli()),
 		DeviceID:  r.DeviceID,
@@ -161,7 +198,8 @@ func (e *Engine) raise(ctx context.Context, r Reading, severity Severity) error 
 	if err := e.db.SetStatus(ctx, r.DeviceID, status); err != nil {
 		slog.Warn("mark device", "device", r.DeviceID, "err", err)
 	}
-	e.raised[r.DeviceID] = severity
+	e.raised[r.DeviceID] = raisedEvent{severity: severity, id: event.ID, peakPPM: r.PPM}
+	e.lastRaisedAt[r.DeviceID] = now
 	slog.Info("alert raised", "device", r.DeviceID, "severity", severity, "ppm", r.PPM)
 	if e.onAlert != nil {
 		go e.onAlert(event)

@@ -35,6 +35,7 @@ type alertMessage struct {
 	AlertID  string  `json:"alertId"`
 	DeviceID string  `json:"deviceId"`
 	Severity string  `json:"severity"`
+	Cleared  bool    `json:"cleared,omitempty"`
 	PeakPPM  float64 `json:"peakPpm"`
 }
 
@@ -92,7 +93,7 @@ func (h *Hub) serve(ctx context.Context, conn *websocket.Conn, tokens *auth.Toke
 func (h *Hub) BroadcastAlert(e alert.Event) {
 	h.broadcast(alertMessage{
 		Type: "alert", AlertID: e.ID, DeviceID: e.DeviceID,
-		Severity: string(e.Severity), PeakPPM: e.PeakPPM,
+		Severity: string(e.Severity), PeakPPM: e.PeakPPM, Cleared: e.Cleared,
 	})
 }
 

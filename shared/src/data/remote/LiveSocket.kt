@@ -24,6 +24,7 @@ private class WsMessage(
     val deviceId: String? = null,
     val severity: String? = null,
     val peakPpm: Double? = null,
+    val cleared: Boolean = false,
     val ppm: Double? = null,
 )
 
@@ -38,7 +39,7 @@ class LiveSocket(
     private val json = Json { ignoreUnknownKeys = true }
     private val client = HttpClient { install(WebSockets) }
 
-    var onAlert: ((alertId: String, deviceId: String, severity: String, peakPpm: Double) -> Unit)? = null
+    var onAlert: ((alertId: String, deviceId: String, severity: String, peakPpm: Double, cleared: Boolean) -> Unit)? = null
     var onReading: ((deviceId: String, ppm: Double) -> Unit)? = null
 
     private var job: Job? = null
@@ -79,6 +80,7 @@ class LiveSocket(
                         message.deviceId.orEmpty(),
                         message.severity.orEmpty(),
                         message.peakPpm ?: 0.0,
+                        message.cleared,
                     )
                     "reading" -> onReading?.invoke(message.deviceId.orEmpty(), message.ppm ?: 0.0)
                 }

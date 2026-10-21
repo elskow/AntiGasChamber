@@ -39,6 +39,7 @@ data class AlertDto(
     @SerialName("severity") val severity: String,
     @SerialName("peakPpm") val peakPpm: Double,
     @SerialName("triggeredAt") val triggeredAt: String,
+    @SerialName("readAt") val readAt: String? = null,
 )
 
 @Serializable
@@ -57,4 +58,39 @@ data class ProvisionDeviceResponse(
     @SerialName("deviceId") val deviceId: String,
     @SerialName("secret") val secret: String,
     @SerialName("mqtt") val mqtt: MqttInfo,
+)
+
+@Serializable
+data class RegisterRequest(
+    @SerialName("email") val email: String,
+    @SerialName("password") val password: String,
+    @SerialName("code") val code: String,
+)
+
+@Serializable
+data class UserDto(
+    @SerialName("id") val id: Long,
+    @SerialName("email") val email: String,
+    @SerialName("createdAt") val createdAt: String? = null,
+)
+
+@Serializable
+data class UsersResponse(
+    @SerialName("users") val users: List<UserDto>,
+)
+
+@Serializable
+data class PasswordChangeRequest(
+    @SerialName("password") val password: String,
+)
+
+@Serializable
+data class StatusResponse(
+    @SerialName("status") val status: String,
+)
+
+@Serializable
+data class PagedAlerts(
+    @SerialName("items") val items: List<AlertDto>,
+    @SerialName("next") val next: String? = null,
 )

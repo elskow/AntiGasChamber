@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import org.unesa.agc.push.AlertCenter
 import org.unesa.agc.data.AgcApi
+import org.unesa.agc.data.friendlyError
 import org.unesa.agc.data.AlertDto
 import org.unesa.agc.data.DeviceDto
 import org.unesa.agc.data.ProvisionDeviceResponse
@@ -37,14 +38,15 @@ class FleetViewModel(
         private set
 
     init {
-        live.onAlert = { alertId, deviceId, severity, peakPpm ->
-            updateDevice(deviceId) { it.copy(status = severity) }
+        live.onAlert = { alertId, deviceId, severity, peakPpm, cleared ->
+            updateDevice(deviceId) { it.copy(status = if (cleared) "online" else severity) }
             alertCenter?.deliver(
                 LiveAlert(
                     id = alertId,
                     deviceId = deviceId,
                     severity = AlertSeverity.from(severity),
                     peakPpm = peakPpm,
+                    cleared = cleared,
                 ),
             )
             refreshAlerts()
@@ -70,7 +72,7 @@ class FleetViewModel(
             try {
                 fleet = api.devices()
             } catch (e: Exception) {
-                error = e.message
+                error = friendlyError(e)
             } finally {
                 loading = false
             }
@@ -80,7 +82,19 @@ class FleetViewModel(
     fun refreshAlerts() {
         viewModelScope.launch {
             try {
-                alerts = api.alerts(limit = 50)
+                alerts = api.alerts(limit = 50).items
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    fun markAlertRead(alertId: String) {
+        viewModelScope.launch {
+            try {
+                api.markAlertRead(alertId)
+                alerts = alerts.map {
+                    if (it.alertId == alertId) it.copy(readAt = "read") else it
+                }
             } catch (_: Exception) {
             }
         }
@@ -96,9 +110,32 @@ class FleetViewModel(
                 fleet = api.devices()
                 onDone()
             } catch (e: Exception) {
-                actionError = e.message
+                actionError = friendlyError(e)
             } finally {
                 provisioning = false
+            }
+        }
+    }
+
+    fun deleteDevice(deviceId: String) {
+        viewModelScope.launch {
+            actionError = null
+            try {
+                api.deleteDevice(deviceId)
+                fleet = api.devices()
+            } catch (e: Exception) {
+                actionError = friendlyError(e)
+            }
+        }
+    }
+
+    fun rotateDevice(deviceId: String) {
+        viewModelScope.launch {
+            actionError = null
+            try {
+                provisioned = api.rotateDevice(deviceId)
+            } catch (e: Exception) {
+                actionError = friendlyError(e)
             }
         }
     }

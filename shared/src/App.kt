@@ -11,6 +11,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
+import org.unesa.agc.data.ApiException
+import org.unesa.agc.data.friendlyError
 import org.unesa.agc.data.AgcApi
 import org.unesa.agc.data.HttpClientFactory
 import org.unesa.agc.data.TokenStore
@@ -19,6 +21,8 @@ import org.unesa.agc.data.remote.LiveSocket
 import org.unesa.agc.ui.screens.fleet.FleetViewModel
 import org.unesa.agc.push.AlertCenter
 import org.unesa.agc.push.AlertPresenter
+import org.unesa.agc.push.PushRegistrar
+import org.unesa.agc.ui.screens.auth.RegisterScreen
 import org.unesa.agc.ui.screens.auth.LoginScreen
 import org.unesa.agc.ui.theme.AgcTheme
 
@@ -39,14 +43,24 @@ class AppGraph(private val baseUrl: String) {
     val api = AgcApi(baseUrl, tokenStore, HttpClientFactory())
     val alertCenter = AlertCenter(presenter = SilentAlertPresenter)
 
+    var pushRegistrar: PushRegistrar? = null
+
     val fleetViewModel: FleetViewModel by lazy {
         FleetViewModel(api, LiveSocket(baseUrl, tokenStore), alertCenter)
     }
 
     suspend fun signIn(email: String, password: String) {
-        val response = api.login(email, password)
+        api.login(email, password)
         session.signIn(email)
+        pushRegistrar?.registerIfNeeded("android")
     }
+
+    suspend fun register(email: String, password: String, code: String) {
+        api.register(email, password, code)
+        session.signIn(email)
+        pushRegistrar?.registerIfNeeded("android")
+    }
+
 
     suspend fun signOut() {
         alertCenter.dismiss()
@@ -80,8 +94,37 @@ fun App() {
 
 @Composable
 private fun LoginGate(graph: AppGraph) {
+    var mode by remember { mutableStateOf("login") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    if (mode == "register") {
+        RegisterScreen(
+            error = error,
+            submitting = submitting,
+            onRegister = { email, password, code ->
+                submitting = true
+                error = null
+                CoroutineScope(Dispatchers.Main).launch {
+                    try {
+                        graph.register(email, password, code)
+                    } catch (e: ApiException) {
+                        error = "${e.status}:${e.message ?: "registration failed"}"
+                    } catch (e: Exception) {
+                        error = friendlyError(e)
+                    } finally {
+                        submitting = false
+                    }
+                }
+            },
+            onBackToLogin = {
+                mode = "login"
+                error = null
+            },
+        )
+        return
+    }
+
     LoginScreen(
         error = error,
         submitting = submitting,
@@ -92,11 +135,15 @@ private fun LoginGate(graph: AppGraph) {
                 try {
                     graph.signIn(email, password)
                 } catch (e: Exception) {
-                    error = e.message ?: "login failed"
+                    error = friendlyError(e)
                 } finally {
                     submitting = false
                 }
             }
+        },
+        onGoToRegister = {
+            mode = "register"
+            error = null
         },
     )
 }

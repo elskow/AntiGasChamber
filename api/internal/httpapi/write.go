@@ -17,7 +17,7 @@ func (s Server) loginHandler() http.HandlerFunc {
 
 		token, claims, err := s.login.Authenticate(r.Context(), req)
 		if err != nil {
-			fail(w, http.StatusUnauthorized, err.Error())
+			failCode(w, r, http.StatusUnauthorized, "invalid_credentials", "email or password is wrong")
 			return
 		}
 		respond(w, http.StatusOK, map[string]any{"token": token, "userId": claims.UserID})
@@ -32,13 +32,13 @@ func (s Server) provisionDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.DeviceID == "" {
-		fail(w, http.StatusBadRequest, "deviceId is required")
+		failCode(w, r, http.StatusBadRequest, "validation_failed", "deviceId is required", fieldError{Field: "deviceId", Message: "required"})
 		return
 	}
 
 	device, err := s.store.ProvisionDevice(r.Context(), req.DeviceID)
 	if err != nil {
-		internalError(w, err)
+		internalError(w, r, err)
 		return
 	}
 
@@ -55,7 +55,7 @@ func (s Server) provisionDevice(w http.ResponseWriter, r *http.Request) {
 func (s Server) registerToken(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.FromContext(r.Context())
 	if !ok {
-		fail(w, http.StatusUnauthorized, "not authenticated")
+		failCode(w, r, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
 
@@ -67,12 +67,14 @@ func (s Server) registerToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Token == "" || (req.Platform != "android" && req.Platform != "ios") {
-		fail(w, http.StatusBadRequest, "token and platform (android|ios) are required")
+		failCode(w, r, http.StatusBadRequest, "validation_failed", "token and platform are required",
+			fieldError{Field: "token", Message: "required"},
+			fieldError{Field: "platform", Message: "must be android or ios"})
 		return
 	}
 
 	if err := s.store.RegisterPushToken(r.Context(), claims.UserID, req.Token, req.Platform); err != nil {
-		internalError(w, err)
+		internalError(w, r, err)
 		return
 	}
 
@@ -83,11 +85,11 @@ func (s Server) testReading(w http.ResponseWriter, r *http.Request) {
 	deviceID := r.PathValue("deviceID")
 	exists, err := s.store.DeviceExists(r.Context(), deviceID)
 	if err != nil {
-		internalError(w, err)
+		internalError(w, r, err)
 		return
 	}
 	if !exists {
-		fail(w, http.StatusNotFound, "device not found")
+		failCode(w, r, http.StatusNotFound, "device_not_found", "device not found")
 		return
 	}
 
@@ -99,7 +101,7 @@ func (s Server) testReading(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.PPM <= 0 {
-		fail(w, http.StatusBadRequest, "ppm must be positive")
+		failCode(w, r, http.StatusBadRequest, "validation_failed", "ppm must be positive", fieldError{Field: "ppm", Message: "must be positive"})
 		return
 	}
 	count := min(max(req.Count, 1), 10)

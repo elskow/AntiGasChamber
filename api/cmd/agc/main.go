@@ -47,8 +47,12 @@ func main() {
 	tokens := auth.NewToken([]byte(cfg.TokenSecret), cfg.TokenTTL())
 
 	hub := live.NewHub()
-	engine := alert.NewEngine(db, alert.DefaultConfig())
-	notifier := dispatch.New(cfg, db)
+	engineCfg := alert.DefaultConfig()
+	if cfg.MinAlertInterval > 0 {
+		engineCfg.MinAlertInterval = cfg.MinAlertInterval
+	}
+	engine := alert.NewEngine(db, engineCfg)
+	notifier := dispatch.NewWithDeleter(cfg, db, db)
 	engine.OnAlert(func(e alert.Event) {
 		hub.BroadcastAlert(e)
 		if err := notifier.Send(ctx, e); err != nil {
@@ -84,9 +88,29 @@ func main() {
 	watch := watchdog.New(db, 10*time.Second, 90*time.Second)
 	go watch.Run(ctx)
 
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cutoff := time.Now().Add(-cfg.ReadingRetention)
+				n, err := db.PruneReadings(ctx, cutoff)
+				if err != nil {
+					slog.Warn("prune readings", "err", err)
+					continue
+				}
+				if n > 0 {
+					slog.Info("pruned readings", "rows", n, "olderThan", cutoff.Format(time.RFC3339))
+				}
+			}
+		}
+	}()
 	api := &http.Server{
 		Addr:              cfg.HTTPAddress,
-		Handler:           httpapi.New(db, auth.NewLogin(db, tokens), tokens, hub.Handler(tokens), pipeline),
+		Handler:           httpapi.New(db, auth.NewLogin(db, tokens), tokens, hub.Handler(tokens), pipeline, cfg.ProvisionCode),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

@@ -39,12 +39,10 @@
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
 	<key>BackendURL</key>
-	<string>http://localhost:8080</string>
+	<string>http://70.153.144.158:8080</string>
 </dict>
 </plist>

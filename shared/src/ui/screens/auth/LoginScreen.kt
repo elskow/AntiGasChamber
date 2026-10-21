@@ -27,6 +27,7 @@ import org.unesa.agc.ui.components.AgcTextField
 import org.unesa.agc.ui.icons.AppTabIcons
 import org.unesa.agc.ui.theme.AgcSpacing
 import org.unesa.agc.ui.theme.AgcThemeColors
+import org.unesa.agc.ui.components.clickableNoRipple
 import org.unesa.agc.ui.theme.AgcTypographyLight
 
 @Composable
@@ -34,6 +35,7 @@ fun LoginScreen(
     error: String?,
     submitting: Boolean,
     onLogin: (String, String) -> Unit,
+    onGoToRegister: () -> Unit = {},
 ) {
     val colors = AgcThemeColors.current
     var email by remember { mutableStateOf(DevCredentials.email) }
@@ -85,7 +87,11 @@ fun LoginScreen(
         if (error != null) {
             Spacer(Modifier.height(AgcSpacing.md.dp))
             Text(
-                if (error.contains("401") || error.contains("credential", ignoreCase = true)) {
+                if (error.contains("session expired", ignoreCase = true)) {
+                    error
+                } else if (error.contains("credential", ignoreCase = true) ||
+                    error.contains("password", ignoreCase = true)
+                ) {
                     "Wrong email or password."
                 } else {
                     error
@@ -109,6 +115,13 @@ fun LoginScreen(
             "Sign in with your AntiGasChamber account.",
             style = AgcTypographyLight.caption1,
             color = colors.secondaryLabel,
+        )
+        Spacer(Modifier.height(AgcSpacing.sm.dp))
+        Text(
+            "No account? Create one",
+            style = AgcTypographyLight.caption1,
+            color = colors.tint,
+            modifier = Modifier.clickableNoRipple(onClick = onGoToRegister),
         )
         Spacer(Modifier.weight(1.1f))
     }
